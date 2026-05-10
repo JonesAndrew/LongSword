@@ -1,5 +1,16 @@
 import { SpriteSheet } from './spriteSheet';
 
+export interface Collidable {
+  sheet: SpriteSheet;
+  srcX: number;
+  srcY: number;
+  w: number;
+  h: number;
+  drawX: number;
+  drawY: number;
+  flipX?: boolean;
+}
+
 // WeakMap so cached data is released when the SpriteSheet is GC'd.
 const cache = new WeakMap<SpriteSheet, Map<string, Uint8ClampedArray>>();
 
@@ -18,29 +29,28 @@ function getPixels(sheet: SpriteSheet, sx: number, sy: number, sw: number, sh: n
   return frames.get(key)!;
 }
 
-export function pixelCollide(
-  aSheet: SpriteSheet, aSrcX: number, aSrcY: number, aW: number, aH: number, aDrawX: number, aDrawY: number,
-  bSheet: SpriteSheet, bSrcX: number, bSrcY: number, bW: number, bH: number, bDrawX: number, bDrawY: number,
-): boolean {
+export function pixelCollide(a: Collidable, b: Collidable): boolean {
   // Broad-phase AABB
-  if (aDrawX + aW <= bDrawX || bDrawX + bW <= aDrawX) return false;
-  if (aDrawY + aH <= bDrawY || bDrawY + bH <= aDrawY) return false;
+  if (a.drawX + a.w <= b.drawX || b.drawX + b.w <= a.drawX) return false;
+  if (a.drawY + a.h <= b.drawY || b.drawY + b.h <= a.drawY) return false;
 
-  const aPixels = getPixels(aSheet, aSrcX, aSrcY, aW, aH);
-  const bPixels = getPixels(bSheet, bSrcX, bSrcY, bW, bH);
+  const aPixels = getPixels(a.sheet, a.srcX, a.srcY, a.w, a.h);
+  const bPixels = getPixels(b.sheet, b.srcX, b.srcY, b.w, b.h);
   if (!aPixels || !bPixels) return false;
 
-  // Narrow-phase: check alpha of every pixel in the overlap rect
-  const ox  = Math.max(aDrawX, bDrawX);
-  const oy  = Math.max(aDrawY, bDrawY);
-  const ox2 = Math.min(aDrawX + aW, bDrawX + bW);
-  const oy2 = Math.min(aDrawY + aH, bDrawY + bH);
+  // Narrow-phase: check alpha of every pixel in the overlap rect.
+  // flipX mirrors the x lookup into the source data without needing a separate cache entry.
+  const ox  = Math.max(a.drawX, b.drawX);
+  const oy  = Math.max(a.drawY, b.drawY);
+  const ox2 = Math.min(a.drawX + a.w, b.drawX + b.w);
+  const oy2 = Math.min(a.drawY + a.h, b.drawY + b.h);
 
   for (let y = oy; y < oy2; y++) {
     for (let x = ox; x < ox2; x++) {
-      const aAlpha = aPixels[((y - aDrawY) * aW + (x - aDrawX)) * 4 + 3];
+      const aLocalX = a.flipX ? (a.w - 1 - (x - a.drawX)) : (x - a.drawX);
+      const aAlpha = aPixels[((y - a.drawY) * a.w + aLocalX) * 4 + 3];
       if (aAlpha === 0) continue;
-      const bAlpha = bPixels[((y - bDrawY) * bW + (x - bDrawX)) * 4 + 3];
+      const bAlpha = bPixels[((y - b.drawY) * b.w + (x - b.drawX)) * 4 + 3];
       if (bAlpha > 0) return true;
     }
   }

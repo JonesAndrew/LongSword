@@ -37,7 +37,7 @@ export class Game {
     this.canvas = new PixelCanvas({ width: GAME_WIDTH, height: GAME_HEIGHT });
     this.input = new Input(this.canvas.element, GAME_WIDTH, GAME_HEIGHT);
     this.renderer = new Renderer(this.canvas.ctx);
-    this.stances = new StanceMachine('A');
+    this.stances = new StanceMachine(1);
     this.knight = new SpriteSheet(knightUrl);
     this.loop = new GameLoop(this.canvas.ctx, this.update, this.render);
   }
@@ -47,9 +47,14 @@ export class Game {
   }
 
   private update = (dt: number): void => {
-    if (this.input.isDown('ArrowRight') || this.input.isDown('KeyD')) this.stances.request('A');
-    if (this.input.isDown('ArrowLeft')  || this.input.isDown('KeyA')) this.stances.request('B');
-    if (this.input.isDown('ArrowUp')    || this.input.isDown('KeyW')) this.stances.request('C');
+    this.input.tick();
+
+    const buf = (code: string) => this.input.isBuffered(code);
+    if      (buf('KeyE') || (buf('ArrowUp') && buf('ArrowRight'))) this.stances.request(2);
+    else if (buf('KeyQ') || (buf('ArrowUp') && buf('ArrowLeft')))  this.stances.request(4);
+    else if (buf('KeyW') || buf('ArrowUp'))                        this.stances.request(3);
+    else if (buf('KeyD') || buf('ArrowRight'))                     this.stances.request(1);
+    else if (buf('KeyA') || buf('ArrowLeft'))                      this.stances.request(5);
     this.stances.update(dt);
 
     this.spawnTimer -= dt;
@@ -76,12 +81,16 @@ export class Game {
     const knightH = this.knight.naturalHeight;
     const anim = this.stances.animFrameInfo;
 
+    const rockCollidable = (rock: Rock) => ({
+      sheet: Rock.sprite, srcX: 0, srcY: 0, w: rockW, h: rockH, drawX: rock.drawX, drawY: rock.drawY,
+    });
+
     for (const rock of this.rocks) {
       // Stance animation destroys rocks it hits.
       if (anim) {
         const slashHit = pixelCollide(
-          anim.sheet, anim.frameIndex * anim.frameW, 0, anim.frameW, anim.frameH, PLAYER_X, PLAYER_Y,
-          Rock.sprite, 0, 0, rockW, rockH, rock.drawX, rock.drawY,
+          { sheet: anim.sheet, srcX: anim.frameIndex * anim.frameW, srcY: 0, w: anim.frameW, h: anim.frameH, drawX: PLAYER_X, drawY: PLAYER_Y, flipX: anim.flipped },
+          rockCollidable(rock),
         );
         if (slashHit) { rock.markDead(); continue; }
       }
@@ -89,8 +98,8 @@ export class Game {
       // Rock hitting the player body triggers a flash (with invincibility frames).
       if (this.hitTimer <= 0) {
         const bodyHit = pixelCollide(
-          this.knight, 0, 0, knightW, knightH, PLAYER_X, PLAYER_Y,
-          Rock.sprite, 0, 0, rockW, rockH, rock.drawX, rock.drawY,
+          { sheet: this.knight, srcX: 0, srcY: 0, w: knightW, h: knightH, drawX: PLAYER_X, drawY: PLAYER_Y },
+          rockCollidable(rock),
         );
         if (bodyHit) {
           this.hitTimer = Game.HIT_DURATION;
