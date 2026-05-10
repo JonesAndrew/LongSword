@@ -46,6 +46,34 @@ export class SpriteSheet {
     ctx.drawImage(this.image, Math.floor(dx), Math.floor(dy));
   }
 
+  // Draw the sprite as a solid white silhouette, preserving transparency.
+  // The white version is cached after the first call.
+  private whiteCache: OffscreenCanvas | null = null;
+  drawAsWhite(ctx: CanvasRenderingContext2D, dx: number, dy: number): void {
+    if (!this.image) return;
+    if (!this.whiteCache) {
+      const w = this.naturalWidth;
+      const h = this.naturalHeight;
+      const offscreen = new OffscreenCanvas(w, h);
+      const offCtx = offscreen.getContext('2d')!;
+      offCtx.drawImage(this.image, 0, 0);
+      offCtx.globalCompositeOperation = 'source-in';
+      offCtx.fillStyle = '#ffffff';
+      offCtx.fillRect(0, 0, w, h);
+      this.whiteCache = offscreen;
+    }
+    ctx.drawImage(this.whiteCache, Math.floor(dx), Math.floor(dy));
+  }
+
+  // Extract raw RGBA pixel data for a region. Result is cached by the caller.
+  extractPixels(sx: number, sy: number, sw: number, sh: number): Uint8ClampedArray | null {
+    if (!this.image) return null;
+    const canvas = new OffscreenCanvas(sw, sh);
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(this.image, sx, sy, sw, sh, 0, 0, sw, sh);
+    return ctx.getImageData(0, 0, sw, sh).data;
+  }
+
   // Build an evenly-spaced grid of frame rects (rows × cols).
   static grid(
     sheetW: number,

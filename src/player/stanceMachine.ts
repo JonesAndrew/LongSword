@@ -49,6 +49,11 @@ export class StanceMachine {
   get stance(): Stance { return this._stance; }
   get isTransitioning(): boolean { return this._target !== null; }
 
+  get animFrameInfo(): { sheet: SpriteSheet; frameIndex: number; frameW: number; frameH: number } | null {
+    if (!this._activeAnim) return null;
+    return { sheet: this._activeAnim.sheet, frameIndex: this._activeAnim.currentFrame, frameW: FRAME_W, frameH: FRAME_H };
+  }
+
   request(target: Stance): void {
     if (target === this._stance || this.isTransitioning) return;
     const anim = this.transitions[`${this._stance}to${target}` as TransitionKey];
